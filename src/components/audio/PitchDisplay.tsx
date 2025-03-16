@@ -19,6 +19,7 @@ export default function PitchDisplay({
   // Update pitch history
   useEffect(() => {
     if (isRecording && frequency && frequency > 0) {
+      // console.log('Updating pitch history with frequency:', frequency)
       pitchHistoryRef.current.push({
         frequency,
         time: Date.now()
@@ -34,7 +35,10 @@ export default function PitchDisplay({
     
     if (!isRecording) {
       // Clear pitch history when not recording
-      pitchHistoryRef.current = []
+      if (pitchHistoryRef.current.length > 0) {
+        console.log('Clearing pitch history')
+        pitchHistoryRef.current = []
+      }
       
       // Clear canvas
       const canvas = canvasRef.current
@@ -89,6 +93,20 @@ export default function PitchDisplay({
     })
     
     ctx.stroke()
+    
+    // Draw a horizontal line for the current frequency
+    if (frequency && frequency > 0) {
+      const normalizedCurrentFreq = (frequency - minFreq) / range
+      const y = canvas.height - (normalizedCurrentFreq * (canvas.height * 0.8) + canvas.height * 0.1)
+      
+      ctx.beginPath()
+      ctx.strokeStyle = 'rgba(232, 121, 249, 0.5)' // secondary-400 with transparency
+      ctx.setLineDash([5, 5])
+      ctx.moveTo(0, y)
+      ctx.lineTo(canvas.width, y)
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
   }
   
   // Format frequency to 2 decimal places
@@ -110,7 +128,7 @@ export default function PitchDisplay({
         </div>
       </div>
       
-      <div className="bg-gray-900 rounded-lg p-2 h-48">
+      <div className="bg-gray-900 rounded-lg p-2 h-48 relative">
         <canvas 
           ref={canvasRef} 
           className="w-full h-full"
@@ -123,6 +141,12 @@ export default function PitchDisplay({
             {frequency ? 'Recording stopped' : 'Start recording to see pitch visualization'}
           </div>
         )}
+      </div>
+      
+      <div className="mt-2 text-xs text-gray-500">
+        {isRecording && pitchHistoryRef.current.length > 0 ? 
+          `Collecting data: ${pitchHistoryRef.current.length} points` : 
+          'No pitch data available'}
       </div>
     </div>
   )

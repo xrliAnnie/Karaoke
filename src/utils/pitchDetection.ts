@@ -38,6 +38,16 @@ export function frequencyToNote(frequency: number): string {
   return closestNote
 }
 
+// Check if the buffer has enough signal to detect pitch
+function hasSignal(buffer: Float32Array, threshold = 0.01): boolean {
+  let sum = 0
+  for (let i = 0; i < buffer.length; i++) {
+    sum += Math.abs(buffer[i])
+  }
+  const average = sum / buffer.length
+  return average > threshold
+}
+
 // Autocorrelation pitch detection algorithm
 // This is a simplified version for demonstration purposes
 export function detectPitch(buffer: Float32Array, sampleRate: number): PitchResult {
@@ -45,7 +55,16 @@ export function detectPitch(buffer: Float32Array, sampleRate: number): PitchResu
   const defaultResult: PitchResult = { frequency: 0, note: 'N/A' }
   
   // Ensure we have enough samples
-  if (buffer.length < 1024) return defaultResult
+  if (buffer.length < 1024) {
+    // console.log('Buffer too small for pitch detection')
+    return defaultResult
+  }
+  
+  // Check if there's enough signal to detect pitch
+  if (!hasSignal(buffer)) {
+    // console.log('Not enough signal for pitch detection')
+    return defaultResult
+  }
   
   // Calculate the autocorrelation of the signal
   const autocorrelation = new Float32Array(buffer.length)
@@ -74,10 +93,19 @@ export function detectPitch(buffer: Float32Array, sampleRate: number): PitchResu
   }
   
   // If no clear peak was found
-  if (peakIndex <= 0 || peakValue < 0.1) return defaultResult
+  if (peakIndex <= 0 || peakValue < 0.1) {
+    // console.log('No clear peak found in autocorrelation')
+    return defaultResult
+  }
   
   // Calculate frequency from the peak index
   const frequency = sampleRate / peakIndex
+  
+  // Ensure the frequency is in a reasonable range for human voice (80Hz - 1100Hz)
+  if (frequency < 80 || frequency > 1100) {
+    // console.log('Frequency outside reasonable range:', frequency)
+    return defaultResult
+  }
   
   // Convert frequency to note
   const note = frequencyToNote(frequency)

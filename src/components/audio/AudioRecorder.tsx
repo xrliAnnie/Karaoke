@@ -31,9 +31,13 @@ export default function AudioRecorder({
   
   // Request microphone permission
   useEffect(() => {
+    console.log('Requesting microphone permission...')
+    
     async function requestMicrophonePermission() {
       try {
+        console.log('Attempting to access microphone...')
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        console.log('Microphone access granted!', stream)
         setHasPermission(true)
         streamRef.current = stream
         
@@ -49,6 +53,8 @@ export default function AudioRecorder({
         analyserRef.current = analyser
         sourceRef.current = source
         
+        console.log('Audio context and analyzer set up successfully')
+        
       } catch (err) {
         console.error('Error accessing microphone:', err)
         setError('Microphone access denied. Please allow microphone access to use this feature.')
@@ -60,6 +66,7 @@ export default function AudioRecorder({
     
     return () => {
       // Clean up resources when component unmounts
+      console.log('Cleaning up audio resources...')
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop())
       }
@@ -74,11 +81,28 @@ export default function AudioRecorder({
   
   // Handle recording state changes
   useEffect(() => {
-    if (!hasPermission || !streamRef.current || !analyserRef.current) return
+    console.log('Recording state changed:', isRecording, 'hasPermission:', hasPermission)
+    
+    if (!hasPermission) {
+      console.log('No microphone permission yet')
+      return
+    }
+    
+    if (!streamRef.current) {
+      console.log('No stream available')
+      return
+    }
+    
+    if (!analyserRef.current) {
+      console.log('No analyzer available')
+      return
+    }
     
     if (isRecording) {
+      console.log('Starting recording...')
       startRecording()
-    } else {
+    } else if (mediaRecorderRef.current) {
+      console.log('Stopping recording...')
       stopRecording()
     }
     
@@ -90,39 +114,65 @@ export default function AudioRecorder({
   }, [isRecording, hasPermission])
   
   const startRecording = () => {
-    if (!streamRef.current) return
+    if (!streamRef.current) {
+      console.error('No stream available for recording')
+      return
+    }
     
+    console.log('Initializing recording...')
     audioChunksRef.current = []
     startTimeRef.current = Date.now()
     
-    const mediaRecorder = new MediaRecorder(streamRef.current)
-    mediaRecorderRef.current = mediaRecorder
-    
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        audioChunksRef.current.push(event.data)
-      }
-    }
-    
-    mediaRecorder.onstop = () => {
-      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' })
-      const audioUrl = URL.createObjectURL(audioBlob)
-      const duration = Date.now() - startTimeRef.current
+    try {
+      const mediaRecorder = new MediaRecorder(streamRef.current)
+      mediaRecorderRef.current = mediaRecorder
       
-      onStopRecording({
-        url: audioUrl,
-        blob: audioBlob,
-        duration
-      })
+      mediaRecorder.ondataavailable = (event) => {
+        console.log('Data available from recorder:', event.data.size)
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+        }
+      }
+      
+      mediaRecorder.onstop = () => {
+        console.log('MediaRecorder stopped, processing audio...')
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' })
+        const audioUrl = URL.createObjectURL(audioBlob)
+        const duration = Date.now() - startTimeRef.current
+        
+        console.log('Audio recorded:', { 
+          duration, 
+          blobSize: audioBlob.size, 
+          url: audioUrl 
+        })
+        
+        onStopRecording({
+          url: audioUrl,
+          blob: audioBlob,
+          duration
+        })
+      }
+      
+      // Start recording with 100ms timeslices to get frequent ondataavailable events
+      mediaRecorder.start(100)
+      console.log('MediaRecorder started:', mediaRecorder.state)
+      startPitchDetection()
+    } catch (err) {
+      console.error('Error starting MediaRecorder:', err)
+      setError('Failed to start recording. Please try again.')
     }
-    
-    mediaRecorder.start()
-    startPitchDetection()
   }
   
   const stopRecording = () => {
+    console.log('Stopping recording, mediaRecorder state:', mediaRecorderRef.current?.state)
+    
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop()
+      try {
+        mediaRecorderRef.current.stop()
+        console.log('MediaRecorder stopped')
+      } catch (err) {
+        console.error('Error stopping MediaRecorder:', err)
+      }
     }
     
     if (animationFrameRef.current) {
@@ -132,8 +182,12 @@ export default function AudioRecorder({
   }
   
   const startPitchDetection = () => {
-    if (!analyserRef.current || !audioContextRef.current) return
+    if (!analyserRef.current || !audioContextRef.current) {
+      console.error('Analyzer or audio context not available')
+      return
+    }
     
+    console.log('Starting pitch detection...')
     const analyser = analyserRef.current
     const bufferLength = analyser.fftSize
     const dataArray = new Float32Array(bufferLength)
@@ -144,6 +198,7 @@ export default function AudioRecorder({
       const { frequency, note } = detectPitch(dataArray, audioContextRef.current!.sampleRate)
       
       if (frequency > 0) {
+        // console.log('Detected pitch:', frequency.toFixed(2), 'Hz', note)
         onPitchDetected(frequency, note)
       }
       
@@ -160,6 +215,13 @@ export default function AudioRecorder({
           {error}
         </div>
       )}
+      
+      <div className="mb-2 text-center">
+        <p className="text-sm text-gray-400">
+          Microphone: {hasPermission === null ? 'Requesting access...' : 
+                      hasPermission ? 'Access granted' : 'Access denied'}
+        </p>
+      </div>
       
       <button
         onClick={isRecording ? () => {} : onStartRecording}

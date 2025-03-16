@@ -58,6 +58,12 @@ export default function AboutPage() {
               We only collect anonymous usage data to help improve the application.
             </p>
           </section>
+          
+          <div className="mt-8 pt-6 border-t border-gray-700">
+            <Link href="/record" className="btn-primary">
+              Try It Now
+            </Link>
+          </div>
         </div>
       </div>
     </div>

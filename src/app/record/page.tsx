@@ -13,11 +13,13 @@ export default function RecordPage() {
   const [recordedAudio, setRecordedAudio] = useState<AudioData | null>(null)
   
   const handleStartRecording = () => {
+    console.log('Starting recording...')
     setIsRecording(true)
     setRecordedAudio(null)
   }
   
   const handleStopRecording = (audioData: AudioData) => {
+    console.log('Stopping recording...', audioData)
     setIsRecording(false)
     setRecordedAudio(audioData)
     // Here we would send the audio data to the backend for logging
